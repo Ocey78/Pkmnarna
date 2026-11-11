@@ -1,0 +1,55 @@
+name: Audit all native assets
+on:
+  push:
+    branches: [audit-all-assets]
+    paths: ['.github/workflows/assets-audit.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inventory:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - run: node scripts/prepare.mjs
+      - name: Inspect complete public asset catalogs without executing game code
+        run: |
+          node --input-type=module <<'NODE'
+          import acorn from './vendor/acorn.cjs';
+          import {scanJS, verifyAndPatch, SUPPORTED_PATH, UPSTREAM} from './scripts/core.mjs';
+          import {writeFileSync, mkdirSync} from 'node:fs';
+          const entry=UPSTREAM+SUPPORTED_PATH;
+          async function get(url){const r=await fetch(url,{signal:AbortSignal.timeout(45000)});if(!r.ok)throw Error(url+' HTTP '+r.status);return await r.text();}
+          const source=await get(entry);
+          verifyAndPatch(Buffer.from(source),entry);
+          const scan=scanJS(source,entry);
+          const counts=refs=>{const r={};for(const x of refs){let p=new URL(x.url).pathname;let k=p.split('/').slice(0,-1).join('/').replace(/\/\d{4}(?:\/\d{4})*$/,'/*');r[k]=(r[k]||0)+1;}return r;};
+          console.log('ENTRY_INVENTORY',JSON.stringify({count:scan.references.length,categories:counts(scan.references),dynamic:scan.dynamic}));
+          const modules=scan.references.filter(x=>/movementClips\.generated-.*\.js$/.test(x.url));
+          for(const m of modules){const s=await get(m.url),v=scanJS(s,m.url);console.log('MOVEMENT_INVENTORY',JSON.stringify({module:m.url,count:v.references.length,categories:counts(v.references),dynamic:v.dynamic}));}
+          const tree=acorn.parse(source,{sourceType:'module',ecmaVersion:'latest'});
+          const templates=new Set(),functions=new Map();
+          function walk(n,fn){if(!n?.type)return;let current=['FunctionDeclaration','FunctionExpression','ArrowFunctionExpression'].includes(n.type)?n:fn;
+            if(n.type==='TemplateLiteral'&&n.expressions.length){const raw=source.slice(n.start,n.end);if(raw.length<600&&(/\.(?:png|gif|jpg|mp3|ogg|wav|m4a|json|xml|webp)/i.test(raw)||/(?:assets|audio|vfx|sprite|movement|hud)\//i.test(raw))){templates.add(raw);if(current&&current.end-current.start<2800)functions.set(current.start,source.slice(current.start,current.end));}}
+            for(const v of Object.values(n)){if(Array.isArray(v))for(const k of v)walk(k,current);else if(v?.type)walk(v,current);}
+          }
+          walk(tree,null);
+          console.log('DYNAMIC_ASSET_TEMPLATES',JSON.stringify([...templates]));
+          console.log('DYNAMIC_ASSET_FUNCTIONS',JSON.stringify([...functions.values()]));
+          const apiCalls=[];
+          function loaders(n){if(!n?.type)return;if(n.type==='CallExpression'&&n.callee?.type==='MemberExpression'&&['image','audio','spritesheet','atlas','bitmapFont','json','xml','video'].includes(n.callee.property?.name)){const raw=source.slice(n.start,n.end);if(raw.length<500)apiCalls.push(raw);}for(const v of Object.values(n)){if(Array.isArray(v))for(const x of v)loaders(x);else if(v?.type)loaders(v);}}
+          loaders(tree);console.log('LOADER_CALLS',JSON.stringify([...new Set(apiCalls)]));
+          for(const name of ['Zt','RU','zU','LM','rK','iK','hK','kK','AK'])for(const st of tree.body)if(st.type==='VariableDeclaration')for(const d of st.declarations)if(d.id?.name===name)console.log('CATALOG_SHAPE',name,d.init?.type,source.slice(d.init.start,Math.min(d.init.start+500,d.init.end)));
+          try{const report=JSON.parse(await get('https://ocey78.github.io/Pkmnarna/build-report.json?audit='+Date.now()));console.log('DEPLOYED_ASSETS',JSON.stringify(report));}catch(e){console.log('DEPLOYED_REPORT_ERROR',String(e));}
+          mkdirSync('audit',{recursive:true});writeFileSync('audit/asset-reference-audit.json',JSON.stringify({references:scan.references,templates:[...templates],functions:[...functions.values()]},null,2));
+          NODE
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: native-asset-reference-audit
+          path: audit
+          retention-days: 3
