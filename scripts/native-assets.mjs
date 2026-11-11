@@ -35,7 +35,16 @@ export function nativeAssetReferences(tree,source,url){
  if(path!=='/play-online/assets/index-BBhViti1.js'||!source.includes(GAME_HELPER)||!source.includes(ROOT_HELPER))return [];
  const vars=new Map();
  for(const statement of tree.body){if(statement.type==='VariableDeclaration')for(const d of statement.declarations)if(d.id.type==='Identifier')vars.set(d.id.name,d.init);}
- const keys=(name)=>properties(vars.get(name)).map(key).filter(v=>typeof v==='string'&&NAME.test(v));
+ const resolve=(name)=>{let n=vars.get(name),seen=new Set([name]);while(n?.type==='Identifier'){if(seen.has(n.name))return null;seen.add(n.name);n=vars.get(n.name);}return n;};
+ const keys=(name)=>properties(resolve(name)).map(key).filter(v=>typeof v==='string'&&NAME.test(v));
+ // Additional catalogs verified against the pinned native client and its music credits.
+ const formats=(resolve('li')?.elements??[]).map(text).filter(v=>['m4a','mp3','ogg'].includes(v));
+ for(const name of new Set([...keys('si'),'victory','defeat']))for(const ext of formats)add('/play-online/audio/bgm/'+name+'.'+ext,true);
+ if(formats.length){add('/play-online/audio/bgm/CREDITS.md');add('/play-online/audio/bgm/loops.json');}
+ for(const p of properties(resolve('jQ'))){const name=text(p.value);if(typeof name==='string'&&NAME.test(name))add('/play-online/ui/menu/icons/menu_icon_'+name+'.png',true);}
+ for(const name of keys('lq'))add('/play-online/vfx/thunder-field/'+name+'.png',true);
+ // The native loader may fall back to this base-dex walk sheet even for a form.
+ for(const dex of new Set(roster.map(r=>r.dex)))add('/assets/movement/'+String(dex).padStart(4,'0')+'/Walk-Anim.png');
  for(const {id} of roster){if(!NAME.test(id))throw new Error('Unsafe roster asset ID');add('/assets/pokemon/'+id+'.gif',true);add('/assets/cries/'+id+'.mp3');add('/play-online/ui/hud/heads/'+id+'.png');}
  for(const name of keys('LM'))add('/play-online/vfx/pa2d/'+name+'.png');
  for(const [table,folder] of [['rK','open-m1'],['iK','open-m2'],['hK','open-m3'],['kK','open-m4'],['AK','open-m4']])for(const name of keys(table))add('/play-online/vfx/'+folder+'/'+name+'.png');
@@ -55,7 +64,7 @@ export function nativeHelperEdits(tree,source,url,base){
  for(const n of tree.body){
   if(n.type!=='FunctionDeclaration')continue;
   const exact=source.slice(n.start,n.end);
-  if(exact===GAME_HELPER)edits.push({start:n.start,end:n.end,text:`function ai(e){if(/^(?:https?:)?\\/\\//.test(e))return e;let b=${b};if((b!=="/"&&e.startsWith(b))||e.startsWith(${game}))return e;return ${game}+e.replace(/^\\/+/,"").replace(/^play-online\\//,"")}`});
+  if(exact===GAME_HELPER)edits.push({start:n.start,end:n.end,text:`function ai(e){if(/^(?:https?:)?\\/\\//.test(e))return e;let b=${b};if((b!=="/"&&e.startsWith(b))||e.startsWith(${game}))return e;return ${game}+e.replace(/^\\/+/ ,"").replace(/^play-online\\//,"")}`});
   if(exact===ROOT_HELPER)edits.push({start:n.start,end:n.end,text:`function oi(e){if(/^https?:\\/\\//.test(e))return e;let b=${b},p=e.startsWith(b)?e:b+e.replace(/^\\/+/ ,"");return new URL(p,window.location.origin).href}`});
  }
  return edits;
