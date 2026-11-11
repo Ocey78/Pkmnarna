@@ -61,7 +61,7 @@ with tempfile.TemporaryDirectory() as temp:
     if gate.count() and gate.first.is_visible():gate.first.click()
     # Native phase=fight exists during asset loading and the 3-2-1 gate.
     page.wait_for_function('globalThis.__nativeBattleStarted?.()',timeout=60000)
-    canvas=page.locator('canvas');assert canvas.is_visible(),'Native game canvas is hidden'
+    canvas=page.locator('#app canvas[data-ai][data-phase]');assert canvas.is_visible(),'Native game canvas is hidden'
     bounds=canvas.bounding_box();assert bounds and bounds['width']>100 and bounds['height']>100,'Native canvas has no usable dimensions'
     first=page.evaluate(state_script);result['before']=first
     page.screenshot(path=str(OUT/(engine+'-battle-before.png')))
