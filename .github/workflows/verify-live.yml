@@ -1,0 +1,100 @@
+name: Verify deployed game
+on:
+  push:
+    branches: [verify-pages-runtime]
+    paths: ['.github/workflows/verify-live.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install browser test tools
+        run: |
+          python -m pip install playwright==1.64.1 pillow
+          python -m playwright install --with-deps chromium
+      - name: Inspect live launcher and CPU duel
+        shell: python
+        run: |
+          import base64, hashlib, io, json, pathlib, traceback
+          from urllib.parse import urlsplit
+          from PIL import Image
+          from playwright.sync_api import sync_playwright
+          out = pathlib.Path('runtime-evidence')
+          out.mkdir(exist_ok=True)
+          report = {'url':'https://ocey78.github.io/Pkmnarna/', 'errors':[], 'console':[], 'failed':[], 'bad_http':[]}
+          def safe_url(url):
+              p = urlsplit(url)
+              return p.scheme + '://' + p.netloc + p.path
+          failure = None
+          with sync_playwright() as p:
+              browser = p.chromium.launch(headless=True)
+              page = browser.new_page(viewport={'width':1280, 'height':720})
+              page.on('pageerror', lambda e: report['errors'].append(str(e)[:1500]))
+              page.on('console', lambda m: report['console'].append({'type':m.type, 'text':m.text[:1000]}) if m.type in ['error','warning'] else None)
+              page.on('requestfailed', lambda r: report['failed'].append({'url':safe_url(r.url),'error':r.failure}))
+              page.on('response', lambda r: report['bad_http'].append({'url':safe_url(r.url),'status':r.status}) if r.status >= 400 else None)
+              try:
+                  response = page.goto(report['url'], wait_until='domcontentloaded', timeout=45000)
+                  report['http_status'] = response.status
+                  page.wait_for_function("document.querySelector('#player-species')?.options.length === 1066", timeout=30000)
+                  report['launcher_text'] = page.locator('body').inner_text()[:6000]
+                  assert page.locator('#duel-link').get_attribute('aria-disabled') == 'false', 'CPU duel is disabled'
+                  page.locator('#player-species').select_option('charizardmegax')
+                  page.locator('#cpu-species').select_option('gholdengo')
+                  report['duel_url'] = page.locator('#duel-link').get_attribute('href')
+                  page.screenshot(path=str(out/'launcher.png'))
+                  page.locator('#duel-link').click()
+                  page.wait_for_load_state('domcontentloaded')
+                  page.wait_for_timeout(20000)
+                  report['game_text_before'] = page.locator('body').inner_text()[:14000]
+                  report['canvas'] = page.locator('canvas').evaluate_all('(els)=>els.map(e=>({width:e.width,height:e.height,clientWidth:e.clientWidth,clientHeight:e.clientHeight,keys:Object.keys(e)}))')
+                  report['game_globals'] = page.evaluate("Object.keys(window).filter(k=>/phaser|game/i.test(k))")
+                  page.screenshot(path=str(out/'duel-before.png'))
+                  page.keyboard.down('ArrowRight')
+                  page.wait_for_timeout(700)
+                  page.keyboard.up('ArrowRight')
+                  page.keyboard.press('Space')
+                  page.wait_for_timeout(4000)
+                  report['game_text_after'] = page.locator('body').inner_text()[:14000]
+                  page.screenshot(path=str(out/'duel-after.png'))
+                  assert report['canvas'], 'No native game canvas created'
+                  assert any(c['clientWidth'] > 100 and c['clientHeight'] > 100 for c in report['canvas']), 'Native canvas is not visible'
+                  assert not report['errors'], 'Native game raised JavaScript errors'
+                  report['probe_result'] = 'Visible canvas and no unhandled JavaScript errors; inspect screenshot/HUD before claiming a playable duel.'
+              except Exception as e:
+                  failure = str(e)
+                  report['probe_failure'] = failure
+                  report['traceback'] = traceback.format_exc()
+                  try:
+                      report['final_text'] = page.locator('body').inner_text()[:14000]
+                      page.screenshot(path=str(out/'failure.png'))
+                  except Exception:
+                      pass
+              finally:
+                  report['console'] = report['console'][:35]
+                  report['failed'] = report['failed'][:40]
+                  report['bad_http'] = report['bad_http'][:40]
+                  (out/'report.json').write_text(json.dumps(report, indent=2))
+                  print('RUNTIME_REPORT_BEGIN\n'+json.dumps(report, indent=2)+'\nRUNTIME_REPORT_END', flush=True)
+                  image_path = next((out/name for name in ['duel-after.png','failure.png','duel-before.png','launcher.png'] if (out/name).exists()), None)
+                  if image_path:
+                      image = Image.open(image_path).convert('RGB')
+                      image.thumbnail((480,300))
+                      data = io.BytesIO()
+                      image.save(data, format='JPEG', quality=40)
+                      print('SCREENSHOT_JPEG_BASE64='+base64.b64encode(data.getvalue()).decode(), flush=True)
+                  browser.close()
+          if failure:
+              raise SystemExit(failure)
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: live-game-runtime-evidence
+          path: runtime-evidence
+          retention-days: 3
