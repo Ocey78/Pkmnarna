@@ -2,7 +2,7 @@
 Use GAME_TEST_URL for a deployed-site test; otherwise serve dist under its Pages base.
 The only instrumentation exposes the existing Phaser instance for read-only state checks.
 """
-import functools,json,os,pathlib,subprocess,tempfile,threading,time
+import functools,hashlib,json,os,pathlib,subprocess,tempfile,threading,time
 from http.server import SimpleHTTPRequestHandler,ThreadingHTTPServer
 from urllib.parse import urlsplit
 from playwright.sync_api import sync_playwright
@@ -33,6 +33,7 @@ with tempfile.TemporaryDirectory() as temp:
    browser=getattr(p,engine).launch(headless=True)
    context=browser.new_context(viewport={'width':852,'height':393} if engine=='webkit' else {'width':1280,'height':720},is_mobile=engine=='webkit',has_touch=engine=='webkit')
    page=context.new_page()
+   page.add_init_script(path=str(ROOT/'tests/battle-observer.js'))
    page.route('**/play-online/assets/index-BBhViti1.js',lambda r:r.fulfill(status=200,content_type='application/javascript',body=code))
    page.on('pageerror',lambda e:result['errors'].append(str(e)))
    def response(r):
@@ -40,8 +41,15 @@ with tempfile.TemporaryDirectory() as temp:
     if r.status>=400 and u.netloc==urlsplit(url).netloc and pathlib.PurePosixPath(u.path).suffix.lower() in {'.gif','.png','.mp3','.m4a','.css','.js','.ttf','.woff','.woff2'}:
      result['assetFailures'].append({'path':u.path,'status':r.status})
    page.on('response',response)
-   state_script="""() => {const game=globalThis.__assetTestGame;for(const scene of game?.scene?.scenes||[]){if(scene.sys.isActive() && scene.world?.getState){const s=scene.world.getState();return {scene:scene.sys.settings.key,phase:s.phase,elapsedMs:s.elapsedMs,remainingMs:s.remainingMs,playerSpecies:scene.playerSpecies?.id,opponentSpecies:scene.opponentSpecies?.id,active:true};}}return null;}"""
+   state_script='() => globalThis.__readNativeBattle?.() ?? null'
    try:
+    if os.environ.get('GAME_TEST_URL'):
+     live=page.request.get(url+'play-online/assets/index-BBhViti1.js',timeout=45000)
+     assert live.ok,'Deployed native module is unavailable'
+     expected=hashlib.sha256(entry.read_bytes()).hexdigest()
+     actual=hashlib.sha256(live.body()).hexdigest()
+     assert actual==expected,'Deployed native code differs from this tested build'
+     result['deployedCodeSHA256']=actual
     page.goto(url,wait_until='domcontentloaded',timeout=45000)
     page.wait_for_function("document.querySelector('#player-species')?.options.length===1066",timeout=30000)
     page.locator('#player-species').select_option('charizardmegax')
@@ -51,12 +59,17 @@ with tempfile.TemporaryDirectory() as temp:
     # Some browsers display the native click-to-play/audio permission gate.
     gate=page.get_by_role('button',name='PLAY',exact=False)
     if gate.count() and gate.first.is_visible():gate.first.click()
-    page.wait_for_function('('+state_script+')()?.phase === "fight"',timeout=60000)
+    # Native phase=fight exists during asset loading and the 3-2-1 gate.
+    page.wait_for_function('globalThis.__nativeBattleStarted?.()',timeout=60000)
+    canvas=page.locator('canvas');assert canvas.is_visible(),'Native game canvas is hidden'
+    bounds=canvas.bounding_box();assert bounds and bounds['width']>100 and bounds['height']>100,'Native canvas has no usable dimensions'
     first=page.evaluate(state_script);result['before']=first
     page.screenshot(path=str(OUT/(engine+'-battle-before.png')))
-    page.wait_for_timeout(2000)
+    page.wait_for_function('globalThis.__readNativeBattle().elapsedMs > '+str(first['elapsedMs']+1000),timeout=20000)
     later=page.evaluate(state_script);result['after']=later
-    assert later and later['elapsedMs']>first['elapsedMs']+500,'Native battle simulation did not advance'
+    assert later and later['elapsedMs']>first['elapsedMs']+500 and later['tick']>first['tick'],'Native battle simulation did not advance'
+    assert first['fighters'][0]['speciesId']=='charizardmegax','Selected exact player form was not preserved'
+    assert first['fighters'][1]['speciesId']=='gholdengo','Selected CPU fighter was not preserved'
     assert not result['errors'],'Unhandled native JavaScript errors: '+str(result['errors'][:5])
     assert not result['assetFailures'],'Missing native media assets: '+str(result['assetFailures'][:5])
     result['result']='passed: native CPU battle active and simulation advanced'
