@@ -21,6 +21,27 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
+      - name: Verify pinned parser package
+        shell: python
+        run: |
+          import base64, hashlib, io, pathlib, tarfile, urllib.request
+          url = 'https://registry.npmjs.org/acorn/-/acorn-8.15.0.tgz'
+          expected = 'NZyJarBfL7nWwIq+FDL6Zp/yHEhePMNnnJ0y3qfieCrmNvYct8uvtiV41UvlSe6apAfk0fY1FbWx+NwfmpvtTg=='
+          with urllib.request.urlopen(url, timeout=30) as response:
+              data = response.read(1048577)
+          if len(data) > 1048576:
+              raise RuntimeError('Parser package exceeds size limit')
+          actual = base64.b64encode(hashlib.sha512(data).digest()).decode()
+          if actual != expected:
+              raise RuntimeError('Published parser package failed its pinned npm integrity check')
+          with tarfile.open(fileobj=io.BytesIO(data), mode='r:gz') as archive:
+              member = archive.getmember('package/dist/acorn.js')
+              if not member.isfile() or member.size > 1048576:
+                  raise RuntimeError('Invalid parser package entry')
+              parser = archive.extractfile(member).read()
+          print('Verified npm package; parser SHA-256:', hashlib.sha256(parser).hexdigest())
+          pathlib.Path('vendor').mkdir(exist_ok=True)
+          pathlib.Path('vendor/acorn.cjs').write_bytes(parser)
       - name: Verify source tools and synthetic integration tests
         run: npm test
       - name: Determine project Pages path
