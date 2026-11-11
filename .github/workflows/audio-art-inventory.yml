@@ -1,0 +1,27 @@
+name: Audio and effect inventory
+on:
+  push:
+    branches: [audit-all-assets]
+    paths: ['.github/workflows/audio-art-inventory.yml']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - run: node scripts/prepare.mjs
+      - run: |
+          node --input-type=module <<'NODE'
+          import acorn from './vendor/acorn.cjs';
+          import {UPSTREAM,SUPPORTED_PATH,verifyAndPatch} from './scripts/core.mjs';
+          const s=await (await fetch(UPSTREAM+SUPPORTED_PATH)).text();verifyAndPatch(Buffer.from(s),UPSTREAM+SUPPORTED_PATH);
+          const ast=acorn.parse(s,{sourceType:'module',ecmaVersion:'latest'});
+          for(const n of ast.body)if(n.type==='VariableDeclaration')for(const d of n.declarations)if(['cq','si','ci','li'].includes(d.id?.name))console.log('DEFINITION',d.id.name,s.slice(d.init.start,d.init.end));
+          for(const m of s.matchAll(/\.result\(/g))console.log('RESULT_CALL',s.slice(Math.max(0,m.index-120),m.index+240));
+          const r=await fetch(UPSTREAM+'/play-online/audio/bgm/CREDITS.md');console.log('AUDIO_CREDITS',r.status, (await r.text()).slice(0,5000));
+          NODE
