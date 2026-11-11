@@ -1,0 +1,29 @@
+name: Check native asset locations
+on:
+  push:
+    branches: [verify-pages-runtime]
+    paths: ['.github/workflows/check-native-assets.yml']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check documented client asset locations
+        shell: python
+        run: |
+          import sys
+          sys.path.insert(0,'scripts')
+          from build import fetch_public
+          from concurrent.futures import ThreadPoolExecutor
+          paths=['/assets/pokemon/charizardmegax.gif','/assets/pokemon/gholdengo.gif','/assets/movement/0006/Walk-Anim.png','/play-online/vfx/ghost/ghost_hit_burst.png','/play-online/vfx/pa2d/psico.png','/play-online/ui/hud/hp_bar_frame.png','/assets/cries/pikachu.mp3']
+          def probe(path):
+              try:
+                  data=fetch_public('https://poke2darena.com'+path)
+                  return (path,'OK',len(data),repr(data[:12]))
+              except Exception as error:
+                  return (path,'FAILED',str(error))
+          with ThreadPoolExecutor(max_workers=3) as pool:
+              for result in pool.map(probe,paths): print(result,flush=True)
