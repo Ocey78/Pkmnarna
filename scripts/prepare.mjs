@@ -3,7 +3,8 @@ import { mkdir, readFile, writeFile, rename, rm } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-const SHA256 = '6426dc483d1b40cea7c99d9e6bf889560557b1265b1d9d9bee2fb1360ea9bcc6';
+// Derived from the Acorn 8.15.0 npm tarball after verifying its published SHA-512 integrity.
+const SHA256 = 'fdb08546776ec6228b03e8d02b40d4ab3255bae5f401adba7ff5dad927ac5c9c';
 const SOURCES = [
   'https://cdn.jsdelivr.net/npm/acorn@8.15.0/dist/acorn.js',
   'https://unpkg.com/acorn@8.15.0/dist/acorn.js'

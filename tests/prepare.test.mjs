@@ -32,3 +32,7 @@ test('preparation rejects mismatched downloads and preserves an existing file', 
     assert.equal(await readFile(target, 'utf8'), 'existing file');
   });
 });
+
+test('installed parser is the exact published Acorn 8.15.0 distribution', () => {
+  assert.equal(hash, 'fdb08546776ec6228b03e8d02b40d4ab3255bae5f401adba7ff5dad927ac5c9c');
+});
