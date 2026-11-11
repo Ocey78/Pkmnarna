@@ -1,0 +1,30 @@
+name: Resolve remaining asset catalogs
+on:
+  push:
+    branches: [audit-all-assets]
+    paths: ['.github/workflows/missing-catalogs.yml']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 4
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - run: node scripts/prepare.mjs
+      - name: Read static native catalog definitions
+        run: |
+          node --input-type=module <<'NODE'
+          import acorn from './vendor/acorn.cjs';
+          import {UPSTREAM,SUPPORTED_PATH,verifyAndPatch} from './scripts/core.mjs';
+          const r=await fetch(UPSTREAM+SUPPORTED_PATH);if(!r.ok)throw Error(r.status);const s=await r.text();verifyAndPatch(Buffer.from(s),UPSTREAM+SUPPORTED_PATH);
+          const ast=acorn.parse(s,{ecmaVersion:'latest',sourceType:'module'});
+          const defs=new Map();for(const n of ast.body)if(n.type==='VariableDeclaration')for(const d of n.declarations)if(d.id.type==='Identifier')defs.set(d.id.name,d.init);
+          for(const name of ['lq','jQ']){const n=defs.get(name);console.log('EXACT_CATALOG',name,n?s.slice(n.start,n.end):'missing');}
+          const p=s.indexOf('audio/bgm/');console.log('BGM_CONTEXT',s.slice(p-3500,p+3000));
+          const p2=s.indexOf('async function Ek(');console.log('FALLBACK_CONTEXT',s.slice(p2-100,p2+1800));
+          console.log('BGM_LITERAL_CONTEXTS',[...s.matchAll(/\b(?:bgm|BGM)\b/g)].slice(0,45).map(m=>s.slice(Math.max(0,m.index-110),m.index+150)));
+          NODE
