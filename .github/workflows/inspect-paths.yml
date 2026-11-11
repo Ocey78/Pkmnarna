@@ -10,24 +10,18 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 3
     steps:
-      - name: Read public source and asset status
+      - name: Read deployed source and import report
         shell: python
         run: |
           import json, re, urllib.request
-          origin='https://poke2darena.com'
+          origin='https://ocey78.github.io/Pkmnarna'
           def get(url):
               with urllib.request.urlopen(url,timeout=25) as r:
                   return r.read(8*1024*1024)
           source=get(origin+'/play-online/assets/index-BBhViti1.js').decode()
-          for term in ['PressStart2P-Regular.ttf','ghost_hit_burst.png','psychic_hit_burst.png','/assets/pokemon','volcanic_rect/arena.png','charge_glow_soft.png','new FontFace','/play-online/','AnimData.xml','sprites/','sprites.json']:
+          for term in ['PressStart2P-Regular.ttf','ghost_hit_burst.png','psychic_hit_burst.png','/assets/pokemon','volcanic_rect/arena.png','charge_glow_soft.png','new FontFace','/play-online/','AnimData.xml','sprites/','sprites.json','function YQ']:
               print('\nTERM',term)
               for m in list(re.finditer(re.escape(term),source))[:4]:
-                  print(source[max(0,m.start()-300):m.end()+350])
-          report=json.loads(get('https://ocey78.github.io/Pkmnarna/build-report.json'))
-          print('\nBUILD_REPORT',json.dumps(report,indent=2)[:18000])
-          for path in ['/play-online/vfx/ghost/ghost_hit_burst.png','/play-online/vfx/pa2d/psico.png','/assets/pokemon/charizardmegax.gif','/play-online/assets/pokemon/charizardmegax.gif']:
-              try:
-                  data=get(origin+path)
-                  print('ASSET',path,'OK',len(data),repr(data[:30]))
-              except Exception as e:
-                  print('ASSET',path,str(e))
+                  print(source[max(0,m.start()-350):m.end()+400])
+          report=json.loads(get(origin+'/build-report.json'))
+          print('\nBUILD_REPORT',json.dumps(report,indent=2)[:22000])
