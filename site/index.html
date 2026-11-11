@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#0b1220">
+  <meta name="description" content="Independent full-roster launcher for a locally patched Poke2D client. Official-server compatibility is unverified.">
+  <title>Poke2D · Full Roster</title>
+  <link rel="stylesheet" href="./styles.css">
+  <script type="module" src="./app.mjs"></script>
+</head>
+<body>
+  <div class="ambient" aria-hidden="true"></div>
+  <header class="topbar">
+    <a class="brand" href="./" aria-label="Full Roster home"><span class="brand-icon" aria-hidden="true">P2</span><span>POKÉ2D <small>FULL ROSTER</small></span></a>
+    <a class="official" href="https://poke2darena.com/play-online/" rel="noreferrer">Official game <span aria-hidden="true">↗</span></a>
+  </header>
+  <main id="launcher">
+    <section class="hero" aria-labelledby="heading">
+      <p class="eyebrow">YOUR CLIENT. YOUR LINEUP.</p>
+      <h1 id="heading">The whole roster.<br><span>One arena.</span></h1>
+      <p class="intro">Pick any included Pokémon or starting form for a CPU duel. Open the original game menus for teams, solo modes and Online.</p>
+      <div class="metrics" aria-label="Included roster"><div><strong id="roster-total">—</strong><span>roster entries</span></div><div><strong id="mega-total">—</strong><span>Mega forms</span></div><div><strong>0</strong><span>Safari extensions</span></div></div>
+    </section>
+    <section class="arena-card" aria-labelledby="duel-heading">
+      <div class="section-heading"><div><p class="eyebrow">LOCAL CPU DUEL</p><h2 id="duel-heading">Choose your matchup</h2></div><button class="small-button" id="swap" type="button" disabled aria-label="Swap the two fighters">Swap</button></div>
+      <div class="fighters">
+        <div class="fighter player">
+          <div class="fighter-heading"><span class="role">PLAYER 01</span><button id="player-random" class="text-button" type="button" disabled>Random</button></div>
+          <label for="player-search">Your Pokémon</label>
+          <input id="player-search" type="search" placeholder="Name, form, or # number" autocomplete="off" autocapitalize="none" spellcheck="false" disabled>
+          <label class="sr-only" for="player-species">Your Pokémon form</label><select id="player-species" disabled><option>Loading roster…</option></select>
+          <div class="picker-meta"><span id="player-count">—</span><span id="player-dex">—</span></div>
+        </div>
+        <div class="versus" aria-hidden="true">VS</div>
+        <div class="fighter cpu">
+          <div class="fighter-heading"><span class="role">CPU OPPONENT</span><button id="cpu-random" class="text-button" type="button" disabled>Random</button></div>
+          <label for="cpu-search">Opponent Pokémon</label>
+          <input id="cpu-search" type="search" placeholder="Name, form, or # number" autocomplete="off" autocapitalize="none" spellcheck="false" disabled>
+          <label class="sr-only" for="cpu-species">CPU Pokémon form</label><select id="cpu-species" disabled><option>Loading roster…</option></select>
+          <div class="picker-meta"><span id="cpu-count">—</span><span id="cpu-dex">—</span></div>
+        </div>
+      </div>
+      <a id="duel-link" class="button primary" aria-disabled="true" tabindex="-1">Start CPU duel <span aria-hidden="true">→</span></a>
+      <p class="hint">Exact starting forms are a local CPU feature. The official server still decides which online lineups it accepts.</p>
+    </section>
+    <div class="lower-grid">
+      <section class="panel" aria-labelledby="native-heading"><p class="eyebrow">ORIGINAL CLIENT</p><h2 id="native-heading">Play your way</h2><p>Keep the game’s own menus, battles, settings and touch controls. Select <strong>Online</strong> inside the game for official rooms.</p><a id="menu-link" class="button secondary" aria-disabled="true" tabindex="-1">Open game menus <span aria-hidden="true">↗</span></a></section>
+      <section class="panel" aria-labelledby="invite-heading"><p class="eyebrow">OFFICIAL ROOM INVITATION</p><h2 id="invite-heading">Bring the whole link</h2><p>Paste an official invitation. Its room and private-access parameters are preserved; the launcher does not save them.</p><form id="invite-form"><label class="sr-only" for="invite">Full room invitation URL</label><input id="invite" type="url" placeholder="https://poke2darena.com/play-online/…" required autocomplete="off"><button id="join-invite" class="button secondary" type="submit" disabled>Open invitation</button></form><p id="invite-error" role="alert"></p></section>
+    </div>
+    <section class="build-panel" aria-labelledby="build-heading"><div><p class="eyebrow" id="build-heading">BUILD & CONNECTION</p><p id="build-state" role="status" aria-live="polite">Checking this deployment…</p></div><p id="build-detail">No connection has been tested.</p><p class="disclaimer">This is an unofficial self-hosted patch, not the official game. Importing the client does not prove that official servers accept this domain. Use the in-game <strong>Connection</strong> button to inspect actual errors.</p><a id="report-link" href="./build-report.json" hidden>View build report</a></section>
+    <footer><span>Full-roster patch 0.1.0 · Independent compatibility project</span><p>Game code and original assets remain the property of their respective owners. Pokémon © Nintendo / Creatures / GAME FREAK / The Pokémon Company. No affiliation or endorsement.</p><p>Saved progress is separate from the official site. This patch changes roster selection, not owned cards, coins or server-side validation.</p></footer>
+  </main>
+  <noscript><p class="noscript">JavaScript must be enabled to use the launcher.</p></noscript>
+</body>
+</html>

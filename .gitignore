@@ -1,0 +1,15 @@
+.cache/
+dist/
+.test-dist/
+.browser-test/
+node_modules/
+*.log
+.env
+.env.*
+__pycache__/
+.DS_Store
+tests/evidence/
+.poke2d-build-*/
+.poke2d-previous-*/
+vendor/acorn.cjs
+vendor/acorn.cjs.*.tmp
