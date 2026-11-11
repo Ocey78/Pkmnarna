@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import acorn from '../vendor/acorn.cjs';
 import adapter from '../patches/roster.cjs';
+import {nativeAssetReferences,nativeHelperEdits} from './native-assets.mjs';
 
 export const UPSTREAM = 'https://poke2darena.com';
 export const SUPPORTED_PATH = '/play-online/assets/index-BBhViti1.js';
@@ -95,8 +96,8 @@ function analyze(source, url) {
         try {if(new URL(value).origin!==UPSTREAM) external.add(value);}catch{}
       }
       if (FILE.test(value) && !/^[\s{}<>]|[\s{}<>]$/.test(value) && !value.startsWith('data:')) {
-        // Vite dependency tables use assets/foo.js; ordinary runtime paths use the document base.
-        add(n,GAME,/\.m?js(?:[?#]|$)/.test(value));
+        // Native movement/sprite files live at the origin root, unlike game UI resources.
+        add(n,/^\/?assets\/(?:movement|pokemon|cries)\//.test(value)?UPSTREAM+'/':GAME,/\.m?js(?:[?#]|$)/.test(value));
       }
     }
     if(n.type==='TemplateLiteral' && n.expressions.length && n.quasis[0].value.cooked?.startsWith('/')) {
@@ -111,6 +112,7 @@ export function scanJS(source,url) {
     const prev=refs.get(ref);
     refs.set(ref,{url:ref,required:required||prev?.required||false,kind});
   }
+  for (const ref of nativeAssetReferences(a.tree,source,url)) refs.set(ref.url,ref);
   return {references:[...refs.values()],dynamic:[...new Set(a.dynamics)],external:[...a.external]};
 }
 export function rewriteJS(source,url,base,assets) {
@@ -131,6 +133,7 @@ export function rewriteJS(source,url,base,assets) {
       if(first.value.raw.startsWith('/play-online/')) edits.set(first.start,{start:first.start,end:first.end,text:base+first.value.raw.slice(1)});
     }
   });
+  for (const edit of nativeHelperEdits(a.tree,source,url,base)) edits.set(edit.start,edit);
   const ordered=[...edits.values()].sort((a,b)=>a.start-b.start), parts=[];
   let cursor=0;
   for (const e of ordered) {

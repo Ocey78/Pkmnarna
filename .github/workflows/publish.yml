@@ -13,6 +13,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -52,8 +53,8 @@ jobs:
           base = '/' if name.lower() == (owner + '.github.io').lower() else '/' + name + '/'
           with open(os.environ['GITHUB_ENV'], 'a', encoding='utf-8') as f:
               f.write('PAGES_BASE_PATH=' + base + '\n')
-      - name: Import supported client and apply roster patches
-        run: python scripts/build.py
+      - name: Import supported client and complete native sprite assets
+        run: npm run build
       - uses: actions/upload-pages-artifact@v4
         with:
           path: dist
