@@ -1,0 +1,83 @@
+name: Verify corrected live game
+on:
+  push:
+    branches: [verify-pages-runtime]
+    paths: ['.github/workflows/verify-fixed.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install Chromium and WebKit
+        run: |
+          python -m pip install playwright==1.64.1
+          python -m playwright install --with-deps chromium webkit
+      - name: Verify updated native game
+        shell: python
+        run: |
+          import json,pathlib,time,urllib.request
+          from urllib.parse import urlsplit
+          from playwright.sync_api import sync_playwright
+          root='https://ocey78.github.io/Pkmnarna/'
+          out=pathlib.Path('runtime-evidence');out.mkdir(exist_ok=True)
+          deadline=time.time()+360
+          while True:
+              try:
+                  with urllib.request.urlopen(root+'build-report.json?verify='+str(int(time.time())),timeout=15) as response: build=json.load(response)
+                  if build.get('staticResources',0)>1066: break
+              except Exception as e: print('Waiting for the updated deployment:',str(e),flush=True)
+              if time.time()>deadline: raise RuntimeError('The corrected asset build has not deployed; not claiming success.')
+              time.sleep(10)
+          print('DEPLOYED_BUILD',json.dumps({k:build.get(k) for k in ['builtAt','staticResources','downloadedBytes','rosterEntries']}),flush=True)
+          reports=[]
+          with sync_playwright() as p:
+              for engine in ['chromium','webkit']:
+                  report={'engine':engine,'errors':[],'failures':[],'bad_http':[]}
+                  browser=getattr(p,engine).launch(headless=True)
+                  options={'viewport':{'width':1280,'height':720}}
+                  if engine=='webkit': options={'viewport':{'width':852,'height':393},'is_mobile':True,'has_touch':True,'device_scale_factor':2}
+                  page=browser.new_page(**options)
+                  def safe(url):
+                      u=urlsplit(url);return u.scheme+'://'+u.netloc+u.path
+                  page.on('pageerror',lambda e:report['errors'].append(str(e)))
+                  page.on('requestfailed',lambda r:report['failures'].append({'url':safe(r.url),'error':r.failure}))
+                  page.on('response',lambda r:report['bad_http'].append({'url':safe(r.url),'status':r.status}) if r.status>=400 else None)
+                  try:
+                      page.goto(root,wait_until='domcontentloaded',timeout=45000)
+                      page.wait_for_function("document.querySelector('#player-species')?.options.length === 1066",timeout=30000)
+                      page.locator('#player-species').select_option('charizardmegax')
+                      page.locator('#cpu-species').select_option('gholdengo')
+                      page.locator('#duel-link').click()
+                      page.wait_for_load_state('domcontentloaded')
+                      page.wait_for_timeout(14000)
+                      report['canvas']=page.locator('canvas').evaluate_all('(els)=>els.map(e=>({width:e.width,height:e.height,clientWidth:e.clientWidth,clientHeight:e.clientHeight}))')
+                      page.screenshot(path=str(out/(engine+'-battle-before.png')))
+                      page.keyboard.down('ArrowRight');page.wait_for_timeout(600);page.keyboard.up('ArrowRight')
+                      page.keyboard.press('Space');page.wait_for_timeout(3500)
+                      page.screenshot(path=str(out/(engine+'-battle-after.png')))
+                      report['body_text']=page.locator('body').inner_text()[:5000]
+                      assert any(c['clientWidth']>100 and c['clientHeight']>100 for c in report['canvas']),'No visible native canvas'
+                      assert not report['errors'],'Unhandled native JavaScript errors'
+                      report['result']='Browser checks passed; screenshots must show an actual battle before calling gameplay verified.'
+                  except Exception as e:
+                      report['result']='FAILED: '+str(e)
+                      try: page.screenshot(path=str(out/(engine+'-failure.png')))
+                      except Exception: pass
+                  finally:
+                      report['failures']=report['failures'][:30];report['bad_http']=report['bad_http'][:30]
+                      print('BROWSER_REPORT',json.dumps(report),flush=True)
+                      reports.append(report);browser.close()
+          (out/'reports.json').write_text(json.dumps(reports,indent=2))
+          if any(r['result'].startswith('FAILED') for r in reports): raise SystemExit('Runtime verification failed; inspect the evidence.')
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: corrected-live-game-evidence
+          path: runtime-evidence
+          retention-days: 3
