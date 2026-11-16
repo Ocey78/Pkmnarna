@@ -7,26 +7,20 @@ permissions:
   contents: read
 jobs:
   source:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
-      - name: Collect verified public engine and repository source
+      - name: Collect repository source
         shell: python
         run: |
-          import hashlib,pathlib,urllib.request,zipfile
+          import pathlib,zipfile
           out=pathlib.Path('integration-inputs');out.mkdir()
-          url='https://poke2darena.com/play-online/assets/index-BBhViti1.js'
-          with urllib.request.urlopen(url,timeout=30) as r:data=r.read(8*1024*1024+1)
-          assert hashlib.sha256(data).hexdigest()=='06f753660f6405ce447fa04f9a53de87cf1a4e28108fed70bf7cee989ac905c7','Unexpected native source'
-          (out/'stock.js').write_bytes(data)
-          with urllib.request.urlopen('https://poke2darena.com/play-online/',timeout=30) as r:(out/'native.html').write_bytes(r.read(2*1024*1024))
           with zipfile.ZipFile(out/'repository-source.zip','w',zipfile.ZIP_DEFLATED) as z:
               for p in pathlib.Path('.').rglob('*'):
                   if p.is_file() and not any(s in {'.git','integration-inputs','node_modules'} for s in p.parts):z.write(p,p.as_posix())
-          print('Verified original engine SHA-256:',hashlib.sha256(data).hexdigest())
       - uses: actions/upload-artifact@v5
         with:
           name: rocket-integration-inputs
