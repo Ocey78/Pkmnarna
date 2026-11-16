@@ -1,0 +1,12 @@
+import fs from 'node:fs';
+import {recoverStock} from './recover-stock.mjs';
+import {patchRocket,STOCK_HASH} from './rocket-patch.mjs';
+import {rewriteJS} from './core.mjs';
+const [input,extension,out,stockOut,base,assetsFile,oldBase]=process.argv.slice(2);
+if(!oldBase)throw Error('Expected input, extension, output, stockOutput, base, assetsJSON and oldBase');
+const stock=recoverStock(fs.readFileSync(input,'utf8'),oldBase);
+const patched=patchRocket(stock,extension);
+const assets=JSON.parse(fs.readFileSync(assetsFile,'utf8'));
+const output=rewriteJS(patched,'https://poke2darena.com/play-online/assets/index-BBhViti1.js',base,assets);
+fs.writeFileSync(out,output);fs.writeFileSync(stockOut,stock);
+console.log(JSON.stringify({extension:'Rocket Menu',version:'1.9.56',sourceSHA256:STOCK_HASH,bytes:Buffer.byteLength(output)}));

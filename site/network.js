@@ -84,31 +84,6 @@ if(config) {
     else if(event instanceof ErrorEvent)record('A JavaScript error occurred. Check the browser console.');
   },true);
   window.addEventListener('unhandledrejection',()=>record('An asynchronous operation failed. Check the browser console.'));
-  function mount() {
-    const host=document.createElement('aside');host.id='poke2d-host-tools';
-    host.style.cssText='position:fixed;top:max(8px,env(safe-area-inset-top));right:max(8px,env(safe-area-inset-right));z-index:2147483647;';
-    const shadow=host.attachShadow({mode:'open'});
-    shadow.innerHTML=`<style>
-      :host{font:13px system-ui;color:#ecf5ff}*{box-sizing:border-box}
-      nav{display:flex;justify-content:flex-end;gap:6px}button,a{font:inherit;color:#eaf5ff;background:#14263be8;border:1px solid #6b8bab;border-radius:16px;padding:7px 12px;text-decoration:none;cursor:pointer}
-      section{width:min(360px,calc(100vw - 24px));margin-top:8px;padding:14px;background:#111f32f5;border:1px solid #48617e;border-radius:12px}section[hidden]{display:none}
-      h2{font-size:16px;margin:0 0 10px}p{line-height:1.5}textarea{width:100%;height:180px;font:12px monospace;background:#07111e;color:#eaf5ff;border:1px solid #48617e;border-radius:6px;padding:8px}
-    </style><nav><a id="back">Roster</a><button id="show" type="button">Connection</button></nav>
-    <section hidden><h2>Self-hosted client status</h2><p id="state"></p><p>Official-server room and team validation is unchanged. An open transport does not prove a battle will work.</p><textarea readonly aria-label="Diagnostic report"></textarea><button id="copy" type="button">Copy report</button></section>`;
-    const section=shadow.querySelector('section'),area=shadow.querySelector('textarea');
-    shadow.querySelector('#back').href=new URL(config.base,location.origin).href;
-    shadow.querySelector('#show').onclick=()=>{section.hidden=!section.hidden;};
-    refresh=()=>{
-      const state='Client code: '+(codeLoaded?'evaluated':'starting')+' · WebSocket: '+(socketOpened?'opened at least once':'not observed')+' · Peer: '+(peerConnected?'connected at least once':'not observed');
-      shadow.querySelector('#state').textContent=state;
-      area.value=state+'\nOfficial multiplayer: NOT VERIFIED\n\n'+log.join('\n');
-    };
-    shadow.querySelector('#copy').onclick=async()=>{
-      try{await navigator.clipboard.writeText(area.value);shadow.querySelector('#copy').textContent='Copied';}
-      catch{area.focus();area.select();shadow.querySelector('#copy').textContent='Select and copy the report';}
-    };
-    document.documentElement.append(host);refresh();
-  }
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',mount,{once:true});else mount();
+  globalThis.Poke2DHostDiagnostics=Object.freeze({snapshot:()=>log.slice()});
   record('Official endpoints preserved. This page uses its real host origin; no CORS or Origin bypass.');
 }

@@ -34,7 +34,7 @@ with tempfile.TemporaryDirectory() as temp:
    context=browser.new_context(viewport={'width':852,'height':393} if engine=='webkit' else {'width':1280,'height':720},is_mobile=engine=='webkit',has_touch=engine=='webkit')
    page=context.new_page()
    page.add_init_script(path=str(ROOT/'tests/battle-observer.js'))
-   page.route('**/play-online/assets/index-BBhViti1.js',lambda r:r.fulfill(status=200,content_type='application/javascript',body=code))
+   page.route('**/play-online/assets/index-BBhViti1.js*',lambda r:r.fulfill(status=200,content_type='application/javascript',body=code))
    page.on('pageerror',lambda e:result['errors'].append(str(e)))
    def response(r):
     u=urlsplit(r.url)
@@ -51,11 +51,16 @@ with tempfile.TemporaryDirectory() as temp:
      assert actual==expected,'Deployed native code differs from this tested build'
      result['deployedCodeSHA256']=actual
     page.goto(url,wait_until='domcontentloaded',timeout=45000)
-    page.wait_for_function("document.querySelector('#player-species')?.options.length===1066",timeout=30000)
-    page.locator('#player-species').select_option('charizardmegax')
-    page.locator('#cpu-species').select_option('gholdengo')
-    page.locator('#duel-link').click()
-    page.wait_for_load_state('domcontentloaded')
+    page.wait_for_url('**/play-online/**',timeout=30000)
+    page.wait_for_function("document.documentElement.getAttribute('data-arena-mod-build')==='1.9.56'",timeout=45000)
+    assert page.locator('#launcher').count()==0,'Old custom launcher is present'
+    assert page.locator('#poke2d-host-tools').count()==0,'Old hosting overlay is present'
+    page.wait_for_selector('#arena-mod-menu',state='attached',timeout=15000)
+    assert not page.locator('#arena-mod-menu #menu-button').is_visible(),'Rocket access must start locked'
+    page.screenshot(path=str(OUT/(engine+'-native-opening.png')))
+    result['opening']='direct native game with Rocket Menu 1.9.56; no hosting UI'
+    # Use the native duel URL supported by the uploaded Rocket roster adapter.
+    page.goto(url+'play-online/?duel=charizardmegax,gholdengo&ai=1&arenaRoster=1',wait_until='domcontentloaded',timeout=45000)
     # Some browsers display the native click-to-play/audio permission gate.
     gate=page.get_by_role('button',name='PLAY',exact=False)
     if gate.count() and gate.first.is_visible():gate.first.click()
@@ -72,7 +77,7 @@ with tempfile.TemporaryDirectory() as temp:
     assert first['fighters'][1]['speciesId']=='gholdengo','Selected CPU fighter was not preserved'
     assert not result['errors'],'Unhandled native JavaScript errors: '+str(result['errors'][:5])
     assert not result['assetFailures'],'Missing native media assets: '+str(result['assetFailures'][:5])
-    result['result']='passed: native CPU battle active and simulation advanced'
+    result['result']='passed: Rocket Menu native opening and advancing CPU battle'
     result['bodyText']=page.locator('body').inner_text()[:1500]
     page.screenshot(path=str(OUT/(engine+'-battle-after.png')))
    except Exception as e:

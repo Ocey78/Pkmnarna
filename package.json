@@ -1,18 +1,19 @@
 {
-  "name": "poke2d-full-roster-pages",
-  "version": "0.1.1",
+  "name": "poke2d-rocket-menu-pages",
+  "version": "1.9.56",
   "private": true,
   "type": "module",
-  "description": "Build-time full-roster patch and GitHub Pages importer; official multiplayer unverified.",
+  "description": "Native Poke2D entry with the uploaded Rocket Menu extension; no hosting launcher",
   "engines": {
     "node": ">=22"
   },
   "scripts": {
     "test": "node --test tests/*.test.mjs && python -m unittest discover -s tests -p 'test_*.py'",
-    "build": "python scripts/build-full.py",
+    "build": "python scripts/build-rocket.py",
     "preview": "python -m http.server 8080 --directory dist",
     "publish": "node scripts/publish.mjs",
     "pretest": "node scripts/prepare.mjs",
-    "prebuild": "node scripts/prepare.mjs"
+    "prebuild": "node scripts/prepare.mjs",
+    "seed": "python scripts/seed_pages.py"
   }
 }

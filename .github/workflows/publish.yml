@@ -1,93 +1,89 @@
-name: Publish full-roster client
+name: Publish Rocket Menu
 on:
   push:
-    branches: [main]
+    branches: [main, rocket-menu-1-9-56]
   workflow_dispatch:
 permissions:
   contents: read
-  actions: read
   pages: write
   id-token: write
 concurrency:
-  group: pages
+  group: rocket-pages-${{ github.ref }}
   cancel-in-progress: false
 jobs:
-  build:
+  source-checks:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 10
+    outputs:
+      archive_ready: ${{ steps.archive.outputs.ready }}
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v6
         with:
           node-version: '22'
       - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
-      - name: Verify source tools and catalog regressions
-        run: npm test
-      - name: Locate a previous successful asset artifact
-        id: seed
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - run: npm test
+      - name: Locate the exact uploaded Rocket Menu archive
+        id: archive
         shell: python
         run: |
-          import json,os,urllib.request
-          api='https://api.github.com/repos/'+os.environ['GITHUB_REPOSITORY']
-          def get(path):
-              req=urllib.request.Request(api+path,headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json'})
-              with urllib.request.urlopen(req,timeout=20) as r:return json.load(r)
-          selected=''
+          import os,pathlib,sys
+          sys.path.insert(0,'scripts')
+          from rocket_host import find_extension
           try:
-              for run in get('/actions/workflows/publish.yml/runs?status=success&branch=main&per_page=5')['workflow_runs']:
-                  artifacts=get('/actions/runs/'+str(run['id'])+'/artifacts')['artifacts']
-                  if any(a['name']=='github-pages' and not a['expired'] for a in artifacts):
-                      selected=str(run['id']);break
-          except Exception as e:print('No reusable seed:',str(e))
-          with open(os.environ['GITHUB_OUTPUT'],'a') as f:f.write('run_id='+selected+'\n')
-          print('Previous asset run:',selected or 'none; doing full upstream import')
-      - uses: actions/download-artifact@v8
-        id: download_seed
-        if: steps.seed.outputs.run_id != ''
-        continue-on-error: true
+              archive=find_extension('.')
+              ready='true'
+              text='Verified Rocket Menu 1.9.56 archive: '+archive.name
+          except FileNotFoundError:
+              ready='false'
+              text='Waiting for Rocket-Menu-Firefox-1.9.56.zip in the repository root. The current live site is unchanged. Upload the original ZIP using Add file > Upload files; this workflow will run again automatically.'
+          with open(os.environ['GITHUB_OUTPUT'],'a') as f:f.write('ready='+ready+'\n')
+          with open(os.environ['GITHUB_STEP_SUMMARY'],'a') as f:f.write(text+'\n')
+          print(text)
+  build:
+    needs: source-checks
+    if: needs.source-checks.outputs.archive_ready == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v6
         with:
-          name: github-pages
-          run-id: ${{ steps.seed.outputs.run_id }}
-          github-token: ${{ github.token }}
-          path: .asset-seed-artifact
-      - name: Extract previous immutable media for reuse
-        if: steps.download_seed.outcome == 'success'
-        shell: python
-        run: |
-          import os,pathlib,tarfile
-          dest=pathlib.Path('.asset-seed').resolve();dest.mkdir(exist_ok=True)
-          with tarfile.open('.asset-seed-artifact/artifact.tar') as archive:
-              members=archive.getmembers()
-              if any(m.issym() or m.islnk() or not (dest/m.name).resolve().is_relative_to(dest) for m in members):raise RuntimeError('Unsafe seed archive')
-              if sum(m.size for m in members)>800*1024*1024:raise RuntimeError('Seed exceeds asset budget')
-              archive.extractall(dest,filter='data')
-          with open(os.environ['GITHUB_ENV'],'a') as f:f.write('ASSET_SEED_DIR='+str(dest)+'\n')
-      - name: Determine project Pages path
-        shell: python
-        run: |
-          import os
-          owner,name=os.environ['GITHUB_REPOSITORY'].split('/',1)
-          base='/' if name.lower()==(owner+'.github.io').lower() else '/'+name+'/'
-          with open(os.environ['GITHUB_ENV'],'a') as f:f.write('PAGES_BASE_PATH='+base+'\n')
-      - name: Import all native asset catalogs and write checksummed inventory
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - uses: actions/cache@v4
+        with:
+          path: .asset-seed
+          key: rocket-assets-v1-${{ github.run_id }}
+          restore-keys: rocket-assets-v1-
+      - name: Reuse checksummed assets from this existing Pages site
+        run: python scripts/seed_pages.py
+      - name: Build only Rocket Menu over the verified original engine
+        env:
+          PAGES_BASE_PATH: /Pkmnarna/
         run: npm run build
-      - name: Install actual browser engines
+      - name: Install browser test engines
         run: |
           python -m pip install playwright==1.64.1
           python -m playwright install --with-deps chromium webkit
-      - name: Verify a real native CPU battle in Chromium and mobile WebKit
-        run: python tests/native_assets_runtime.py
+      - name: Verify native opening and an advancing CPU battle
+        run: |
+          python tests/rocket_menu_dom.py
+          python tests/native_assets_runtime.py
       - uses: actions/upload-artifact@v5
         if: always()
         with:
-          name: native-battle-and-asset-evidence
+          name: rocket-menu-evidence
           path: |
             runtime-evidence
-            dist/asset-manifest.json
             dist/build-report.json
           retention-days: 7
       - uses: actions/upload-pages-artifact@v4
@@ -95,22 +91,23 @@ jobs:
           path: dist
   deploy:
     needs: build
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/configure-pages@v5
-      - name: Deploy verified complete asset build
-        id: deployment
+      - id: deployment
         uses: actions/deploy-pages@v4
-
   verify-live:
     needs: deploy
     runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v6
         with:
           node-version: '22'
@@ -121,25 +118,27 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: github-pages
-          path: .published-artifact
-      - name: Read this run's verified native client
+          path: .published
+      - name: Read this run's verified client for read-only observation
         shell: python
         run: |
           import pathlib,tarfile
-          dest=pathlib.Path('dist').resolve();dest.mkdir()
-          with tarfile.open('.published-artifact/artifact.tar') as archive:
-              archive.extractall(dest,filter='data')
-      - name: Install browser engines
-        run: |
+          with tarfile.open('.published/artifact.tar') as t:
+              for name in ['build-report.json','play-online/assets/index-BBhViti1.js']:
+                  match=next(m for m in t.getmembers() if m.name.lstrip('./')==name)
+                  assert match.isfile() and match.size<32*1024*1024
+                  dest=pathlib.Path('dist')/name;dest.parent.mkdir(parents=True,exist_ok=True)
+                  dest.write_bytes(t.extractfile(match).read())
+      - run: |
           python -m pip install playwright==1.64.1
           python -m playwright install --with-deps chromium webkit
-      - name: Verify an advancing CPU duel on the actual Pages site
+      - name: Verify the actual deployed native opening and CPU battle
         env:
           GAME_TEST_URL: https://ocey78.github.io/Pkmnarna/
         run: python tests/native_assets_runtime.py
       - uses: actions/upload-artifact@v5
         if: always()
         with:
-          name: live-native-battle-evidence
+          name: live-rocket-menu-evidence
           path: runtime-evidence
           retention-days: 7
