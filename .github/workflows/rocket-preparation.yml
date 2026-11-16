@@ -13,31 +13,12 @@ jobs:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
-      - name: Collect repository and previously published media
-        shell: python
-        run: |
-          import pathlib,zipfile,json,hashlib,urllib.request
-          from concurrent.futures import ThreadPoolExecutor
-          out=pathlib.Path('integration-inputs');out.mkdir()
-          root='https://ocey78.github.io/Pkmnarna/'
-          def read(path):
-              with urllib.request.urlopen(root+path,timeout=30) as r:return r.read(32*1024*1024+1)
-          manifest=json.loads(read('asset-manifest.json'))
-          (out/'asset-manifest.json').write_text(json.dumps(manifest))
-          prefixes=('play-online/audio/bgm/','play-online/ui/menu/','play-online/vfx/thunder-field/')
-          selected=[f for f in manifest['files'] if f['path'].startswith(prefixes) or f['path'] in {'assets/movement/0774/Walk-Anim.png','play-online/index.html','play-online/assets/index-BBhViti1.js','build-report.json'}]
-          def copy(f):
-              data=read(f['path'])
-              assert hashlib.sha256(data).hexdigest()==f['sha256'],'Cached file changed: '+f['path']
-              dest=out/'supplement'/f['path'];dest.parent.mkdir(parents=True,exist_ok=True);dest.write_bytes(data)
-              return f['path']
-          with ThreadPoolExecutor(max_workers=4) as pool:
-              for path in pool.map(copy,selected):print(path,flush=True)
-          with zipfile.ZipFile(out/'repository-source.zip','w',zipfile.ZIP_DEFLATED) as z:
-              for p in pathlib.Path('.').rglob('*'):
-                  if p.is_file() and not any(s in {'.git','integration-inputs','node_modules'} for s in p.parts):z.write(p,p.as_posix())
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+      - run: node scripts/prepare.mjs
       - uses: actions/upload-artifact@v5
         with:
-          name: rocket-integration-inputs
-          path: integration-inputs
+          name: verified-parser
+          path: vendor/acorn.cjs
           retention-days: 3
