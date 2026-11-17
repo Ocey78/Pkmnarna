@@ -16,7 +16,20 @@ export function patchRocket(source,extensionDirectory){
   vm.runInContext(fs.readFileSync(path.join(extensionDirectory,name),'utf8'),context,{filename:name,timeout:5000});
  }
  context.stock=source;
- const result=vm.runInContext('patchModMenu(stock)',context,{timeout:30000});
+ let result=vm.runInContext('patchModMenu(stock)',context,{timeout:30000});
+ // Use the unrotated layout container, not a canvas that can lag iOS viewport changes.
+ // Font downloads must not keep the entire menu invisible indefinitely.
+ const mobileFixes=[
+  ['stageSize(){let e=this.game.canvas,t=e.offsetWidth||e.clientWidth||Math.round(this.scale.gameSize.width),n=e.offsetHeight||e.clientHeight||Math.round(this.scale.gameSize.height);',
+   'stageSize(){let e=this.game.canvas,p=this.root?.parentElement||e.parentElement,t=p?.clientWidth||e.offsetWidth||e.clientWidth||Math.round(this.scale.gameSize.width),n=p?.clientHeight||e.offsetHeight||e.clientHeight||Math.round(this.scale.gameSize.height);'],
+  ['onFonts=()=>{cy()&&','onFonts=(force=false)=>{(force===true||cy())&&'],
+  ['ly().then(()=>this.onFonts())',
+   '(root=>{let timer;const ready=()=>{window.clearTimeout(timer);if(this.alive&&this.root===root&&root?.isConnected)this.onFonts(true)};timer=window.setTimeout(ready,1500);ly().then(ready,ready)})(this.root)']
+ ];
+ for(const [before,after] of mobileFixes){
+  if(result.split(before).length!==2)throw Error('Mobile menu patch target changed');
+  result=result.replace(before,after);
+ }
  acorn.parse(result,{sourceType:'module',ecmaVersion:'latest'});
  if(!result.includes("data-arena-mod-build','1.9.56"))throw Error('Rocket build marker is missing');
  return result;

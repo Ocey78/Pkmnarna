@@ -31,7 +31,7 @@ def native_html(html,old_base,base):
     html=html.replace(old_base,base)
     entry=base+ENTRY
     pattern=r'(<script\b[^>]*\bsrc=["\'])'+re.escape(entry)+r'(?:\?[^"\']*)?(["\'][^>]*>)'
-    html,count=re.subn(pattern,lambda m:m[1]+entry+'?rocket='+VERSION+'-'+ZIP_HASH[:12]+m[2],html)
+    html,count=re.subn(pattern,lambda m:m[1]+entry+'?rocket='+VERSION+'-'+ZIP_HASH[:12]+'-mobile1'+m[2],html)
     if count!=1:raise ValueError('Expected exactly one cached native entry')
     network='<script src="'+base+'network.js"></script>'
     if html.count(network)!=1:raise ValueError('Expected one hosting network script')
