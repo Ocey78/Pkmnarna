@@ -17,3 +17,17 @@ class SeedTests(unittest.TestCase):
  def test_duplicate_records_are_rejected(self):
   m=self.load();r={'path':'a.js','bytes':1,'sha256':'0'*64}
   with self.assertRaises(ValueError):m.records({'files':[r,r]})
+ def test_empty_pages_marker_is_recreated_without_http(self):
+  import hashlib,json,tempfile
+  from unittest.mock import patch
+  m=self.load();body=b'game asset';files=[
+   {'path':'.nojekyll','bytes':0,'sha256':hashlib.sha256(b'').hexdigest()},
+   {'path':'assets/test.bin','bytes':len(body),'sha256':hashlib.sha256(body).hexdigest()}]
+  def download(path):
+   if path=='asset-manifest.json':return json.dumps({'files':files}).encode()
+   if path=='assets/test.bin':return body
+   raise AssertionError('Pages does not serve '+path)
+  with tempfile.TemporaryDirectory() as dest,patch.object(m,'download',side_effect=download):
+   m.main(dest)
+   self.assertEqual((pathlib.Path(dest)/'.nojekyll').read_bytes(),b'')
+   self.assertEqual((pathlib.Path(dest)/'assets/test.bin').read_bytes(),body)

@@ -42,7 +42,8 @@ def main(dest):
         p=dest/item['path']
         if not p.resolve().is_relative_to(dest) or p.is_symlink():raise ValueError('Unsafe seed output')
         if p.is_file() and matches(p.read_bytes(),item):return
-        data=download(item['path'])
+        # Pages artifacts omit hidden files; this marker has no asset content.
+        data=b'' if item['path']=='.nojekyll' and item['bytes']==0 else download(item['path'])
         if not matches(data,item):raise ValueError('Published file changed or was corrupt: '+item['path'])
         p.parent.mkdir(parents=True,exist_ok=True)
         temp=p.with_name(p.name+'.download');temp.write_bytes(data);temp.replace(p)
